@@ -63,9 +63,9 @@ public class GenerateConfigClassesMojo extends AbstractMojo {
         getLog().debug(
             String.format("Loading {}.", inputFile)
         );
-        Configuration configuration = Configuration.load(inputFile);
+        Configuration configurationA = Configuration.load(inputFile);
         JCodeModel codeModel = new JCodeModel();
-        ConfigClassGenerator generator = new ConfigClassGenerator(codeModel, configuration);
+        ConfigClassGenerator generator = new ConfigClassGenerator(codeModel, configurationA);
         getLog().debug(
             String.format("Generating {}.", inputFile)
         );

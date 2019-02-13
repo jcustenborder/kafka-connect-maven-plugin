@@ -1,0 +1,21 @@
+{
+  "name": "com.github.jcustenborder.kafka.connect.testing.CharsetSourceConnectorConfig",
+  "prefix": "myconn.",
+  "groups": [
+    {
+      "name": "SSL",
+      "display": "SSL ConfigurationA",
+      "prefix": "ssl.",
+      "configItems": [
+        {
+          "configKey": "enum.test",
+          "type": "STRING",
+          "documentation": "Location of the Java keystore to use.",
+          "importance": "HIGH",
+          "width": "MEDIUM",
+          "extendedType": "Charset"
+        }
+      ]
+    }
+  ]
+}

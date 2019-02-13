@@ -3,7 +3,7 @@
   "prefix" : "myconn.",
   "groups" : [ {
     "name" : "SSL",
-    "display" : "SSL Configuration",
+    "display" : "SSL ConfigurationA",
     "prefix" : "ssl.",
     "configItems" : [ {
       "configKey" : "keystore.path",

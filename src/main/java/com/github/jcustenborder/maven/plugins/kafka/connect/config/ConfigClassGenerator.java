@@ -1,11 +1,14 @@
 package com.github.jcustenborder.maven.plugins.kafka.connect.config;
 
 import com.github.jcustenborder.maven.plugins.kafka.connect.config.model.Configuration;
+import com.google.common.base.CaseFormat;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.net.HostAndPort;
 import com.helger.jcodemodel.AbstractJClass;
 import com.helger.jcodemodel.AbstractJType;
 import com.helger.jcodemodel.EClassType;
+import com.helger.jcodemodel.JCatchBlock;
 import com.helger.jcodemodel.JClassAlreadyExistsException;
 import com.helger.jcodemodel.JCodeModel;
 import com.helger.jcodemodel.JDefinedClass;
@@ -15,23 +18,30 @@ import com.helger.jcodemodel.JFieldVar;
 import com.helger.jcodemodel.JInvocation;
 import com.helger.jcodemodel.JMethod;
 import com.helger.jcodemodel.JMod;
+import com.helger.jcodemodel.JTryBlock;
 import com.helger.jcodemodel.JVar;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.types.Password;
 
 import javax.annotation.Generated;
+import java.net.URI;
+import java.net.URL;
+import java.nio.charset.Charset;
+import java.nio.charset.UnsupportedCharsetException;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class ConfigClassGenerator {
   private final JCodeModel model;
-  private final Configuration configuration;
+  private final Configuration configurationA;
   private final AbstractJClass abstractConfigClass;
   private final AbstractJClass configDefClass;
   private final AbstractJClass configDefImportanceClass;
@@ -42,21 +52,35 @@ public class ConfigClassGenerator {
   private final AbstractJClass configDefPasswordClass;
   private final AbstractJClass wildcardMapClass;
   private final AbstractJClass configItemBuilderClass;
+  private final AbstractJClass configUtilsClass;
   private final AbstractJClass arraysClass;
   private final AbstractJClass baseConfigClass;
   private final AbstractJClass baseConfigClassOptionsInterface;
+  private final AbstractJClass charsetClass;
+  private final AbstractJClass stringClass;
+  private final AbstractJClass unsupportedCharsetExceptionClass;
+  private final AbstractJClass configExceptionClass;
+  private final AbstractJClass listClass;
+  private final AbstractJClass setClass;
+  private final AbstractJClass hostAndPortClass;
+  private final AbstractJClass validEnumClass;
+  private final AbstractJClass recommendersClass;
+  private final AbstractJClass validatorsClass;
+  private final AbstractJClass patternClass;
+
+
   private final Map<ConfigDef.Type, AbstractJType> configTypeLookup;
   private final Map<ConfigDef.Type, String> configMethodLookup;
   private final Map<ConfigDef.Type, JFieldRef> configReferenceLookup;
   private final Map<ConfigDef.Importance, JFieldRef> configImportanceLookup;
   private final Map<ConfigDef.Width, JFieldRef> configWidthLookup;
-  private final JFieldRef configDefNoDefaltValue;
+  private final JFieldRef configDefNoDefaultValue;
   private JDefinedClass configClass;
   JMethod configMethod;
   JVar configMethodOptionsVar;
   JDefinedClass configOptionsInterface;
 
-  public ConfigClassGenerator(JCodeModel model, Configuration configuration) {
+  public ConfigClassGenerator(JCodeModel model, Configuration config) {
     this.model = model;
     this.abstractConfigClass = model.ref(AbstractConfig.class);
     this.configDefImportanceClass = model.ref(ConfigDef.Importance.class);
@@ -66,14 +90,26 @@ public class ConfigClassGenerator {
     this.configDefValidatorClass = model.ref(ConfigDef.Validator.class);
     this.configDefPasswordClass = model.ref(Password.class);
     this.configDefClass = model.ref(ConfigDef.class);
-    this.configDefNoDefaltValue = this.configDefClass.staticRef("NO_DEFAULT_VALUE");
+    this.configDefNoDefaultValue = this.configDefClass.staticRef("NO_DEFAULT_VALUE");
     this.configItemBuilderClass = model.ref("com.github.jcustenborder.kafka.connect.utils.config.ConfigKeyBuilder");
-    this.configuration = configuration;
+    this.configUtilsClass = model.ref("com.github.jcustenborder.kafka.connect.utils.config.ConfigUtils");
+    this.configurationA = config;
     this.arraysClass = model.ref(Arrays.class);
+    this.charsetClass = model.ref(Charset.class);
+    this.stringClass = model.ref(String.class);
+    this.listClass = model.ref(List.class);
+    this.setClass = model.ref(Set.class);
     this.wildcardMapClass = model.ref(Map.class).narrow(
         this.model.wildcard(),
         this.model.wildcard()
     );
+    this.unsupportedCharsetExceptionClass = model.ref(UnsupportedCharsetException.class);
+    this.configExceptionClass = model.ref(ConfigException.class);
+    this.hostAndPortClass = model.ref(HostAndPort.class);
+    this.validEnumClass = model.ref("com.github.jcustenborder.kafka.connect.utils.config.ValidEnum");
+    this.recommendersClass = model.ref("com.github.jcustenborder.kafka.connect.utils.config.recommenders.Recommenders");
+    this.validatorsClass = model.ref("com.github.jcustenborder.kafka.connect.utils.config.validators.Validators");
+    this.patternClass = model.ref(Pattern.class);
 
     Map<ConfigDef.Type, AbstractJType> configTypeLookup = new HashMap<>();
     configTypeLookup.put(ConfigDef.Type.BOOLEAN, this.model.BOOLEAN);
@@ -112,26 +148,26 @@ public class ConfigClassGenerator {
         .map(e -> new AbstractMap.SimpleEntry<>(e, this.configDefWidthClass.staticRef(e.toString())))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-    if (Strings.isNullOrEmpty(this.configuration._extends())) {
+    if (Strings.isNullOrEmpty(this.configurationA._extends())) {
       this.baseConfigClass = null;
       this.baseConfigClassOptionsInterface = null;
     } else {
-      this.baseConfigClass = this.model.ref(this.configuration._extends());
-      this.baseConfigClassOptionsInterface = this.model.ref(this.configuration._extends() + "ConfigOptions");
+      this.baseConfigClass = this.model.ref(this.configurationA._extends());
+      this.baseConfigClassOptionsInterface = this.model.ref(this.configurationA._extends() + "ConfigOptions");
     }
   }
 
   private void setupClass() throws JClassAlreadyExistsException {
     this.configClass = this.model._class(
         JMod.PUBLIC,
-        this.configuration.name(),
+        this.configurationA.name(),
         EClassType.CLASS
     );
     this.configClass.annotate(Generated.class);
 
     this.configOptionsInterface = this.configClass._interface("ConfigOptions");
     this.configOptionsInterface.javadoc().add("Interface is used to configure the Recommenders and " +
-        "Validators for this configuration.");
+        "Validators for this configurationA.");
 
     this.configMethod = this.configClass.method(
         JMod.PUBLIC | JMod.STATIC,
@@ -142,12 +178,12 @@ public class ConfigClassGenerator {
         this.configOptionsInterface,
         "options"
     );
-    this.configMethod.javadoc().add("Method is used to define a ConfigDef of this configuration.");
+    this.configMethod.javadoc().add("Method is used to define a ConfigDef of this configurationA.");
     this.configMethod.javadoc()
         .addParam(this.configMethodOptionsVar)
         .add("Options interface used to configure Recommenders and Validators for each of the " +
-            "configuration options.");
-    this.configMethod.javadoc().addReturn().add("Returns a ConfigDef for the current configuration");
+            "configurationA options.");
+    this.configMethod.javadoc().addReturn().add("Returns a ConfigDef for the current configurationA");
 
 
     if (null == this.baseConfigClass) {
@@ -199,19 +235,16 @@ public class ConfigClassGenerator {
     Map<String, String> parameterJavaDocs = ImmutableMap.of(
         "configOptions", "",
         "definition", "ConfigDef to initialize the AbstractConfig with.",
-        "originals", "Original configuration values as they were passed from the client.",
-        "dolog", "Flag to determine if the configuration variables should be logged."
+        "originals", "Original configurationA values as they were passed from the client.",
+        "dolog", "Flag to determine if the configurationA variables should be logged."
     );
 
-    this.configClass.constructors().forEachRemaining(new Consumer<JMethod>() {
-      @Override
-      public void accept(JMethod jMethod) {
-        jMethod.javadoc().add("Creates a new instance of the config.");
-        for (JVar parm : jMethod.params()) {
-          String comment = parameterJavaDocs.get(parm.name());
-          if (!Strings.isNullOrEmpty(comment)) {
-            jMethod.javadoc().addParam(parm).add(comment);
-          }
+    this.configClass.constructors().forEachRemaining(jMethod -> {
+      jMethod.javadoc().add("Creates a new instance of the config.");
+      for (JVar parm : jMethod.params()) {
+        String comment = parameterJavaDocs.get(parm.name());
+        if (!Strings.isNullOrEmpty(comment)) {
+          jMethod.javadoc().addParam(parm).add(comment);
         }
       }
     });
@@ -219,41 +252,503 @@ public class ConfigClassGenerator {
 
   public void generate() throws JClassAlreadyExistsException {
     setupClass();
-    setupConstants();
-    setupConfigOptionMethods();
-    setupConfigMethod();
-    setupConfigMethods();
+    ConfigurationState configurationState = setupConfigState();
+
+
+//    setupConstants(configurationState);
+//    setupConfigOptionMethods();
+    setupConfigMethod(configurationState);
+    setupConfigMethods(configurationState);
+    setupRecommenderMethods(configurationState);
+    setupValidatorMethods(configurationState);
   }
 
-  private void setupConfigOptionMethods() {
-    for (Configuration.Group group : this.configuration.groups()) {
-      for (Configuration.ConfigItem configItem : group.configItems()) {
-        JMethod recommenderMethod = this.configOptionsInterface.method(
-            JMod.DEFAULT,
-            this.configDefRecommenderClass,
-            configItem.recommenderMethodName()
+  private void setupValidatorMethods(ConfigurationState configurationState) {
+    for (ConfigurationState.GroupState groupState : configurationState.groups()) {
+      for (ConfigurationState.ConfigItemState itemState : groupState.configItems()) {
+        final String methodName = itemState.methodName() + "Validator";
+        final String fullyQualifiedConfigItem = fullyQualifiedConfigItem(
+            configurationState.configuration(), groupState.group(), itemState.configItem()
         );
-        recommenderMethod.body()._return(JExpr._null());
-        recommenderMethod.javadoc().add("Method is used to define the Recommender that will be " +
-            "used for the '" + configItem.fullyQualifiedConfigItem() + "' parameter.");
-        recommenderMethod.javadoc().addReturn().add("Recommender for the configuration item. " +
-            "null if no recommender is desired.");
-
-        JMethod validatorMethod = this.configOptionsInterface.method(
+        JMethod result = this.configOptionsInterface.method(
             JMod.DEFAULT,
             this.configDefValidatorClass,
-            configItem.validatorMethodName()
+            methodName
         );
-        validatorMethod.body()._return(JExpr._null());
-        validatorMethod.javadoc().add("Method is used to define the Validator that will be " +
-            "used for the '" + configItem.fullyQualifiedConfigItem() + "' parameter.");
-        validatorMethod.javadoc().addReturn().add("Validator for the configuration item. " +
+
+        if (Configuration.ExtendedType.Enum == itemState.configItem().extendedType()) {
+          JInvocation invocation = this.validatorsClass.staticInvoke("validEnum")
+              .arg(JExpr.dotClass(itemState.type()));
+          if (null != itemState.configItem().enumExcludes() && !itemState.configItem().enumExcludes().isEmpty()) {
+            for (String enumExclude : itemState.configItem().enumExcludes()) {
+              invocation.arg(JExpr.enumConstantRef((AbstractJClass) itemState.type(), enumExclude));
+            }
+          }
+          result.body()._return(invocation);
+        } else if (Configuration.ExtendedType.Charset == itemState.configItem().extendedType()) {
+          result.body()._return(
+              this.validatorsClass.staticInvoke("validCharset")
+          );
+        } else if (Configuration.ExtendedType.HostAndPort == itemState.configItem().extendedType()) {
+          result.body()._return(
+              this.validatorsClass.staticInvoke("validCharset")
+          );
+        } else if (Configuration.ExtendedType.Uri == itemState.configItem().extendedType()) {
+          result.body()._return(
+              this.validatorsClass.staticInvoke("validURI")
+          );
+        } else if (Configuration.ExtendedType.Url == itemState.configItem().extendedType()) {
+          result.body()._return(
+              this.validatorsClass.staticInvoke("validUrl")
+          );
+        } else if (Configuration.ExtendedType.Pattern == itemState.configItem().extendedType()) {
+          result.body()._return(
+              this.validatorsClass.staticInvoke("pattern")
+          );
+        } else {
+          result.body()._return(JExpr._null());
+        }
+
+
+        result.javadoc().add("Method is used to define the Validator that will be " +
+            "used for the '" + fullyQualifiedConfigItem + "' parameter.");
+        result.javadoc().addReturn().add("Validator for the configurationA item. " +
             "null if no validator is desired.");
       }
     }
   }
 
-  private void setupConfigMethod() {
+  private void setupRecommenderMethods(ConfigurationState configurationState) {
+    for (ConfigurationState.GroupState groupState : configurationState.groups()) {
+      for (ConfigurationState.ConfigItemState itemState : groupState.configItems()) {
+        final String methodName = itemState.methodName() + "Recommender";
+        final String fullyQualifiedConfigItem = fullyQualifiedConfigItem(
+            configurationState.configuration(), groupState.group(), itemState.configItem()
+        );
+        JMethod result = this.configOptionsInterface.method(
+            JMod.DEFAULT,
+            this.configDefRecommenderClass,
+            methodName
+        );
+
+        if (Configuration.ExtendedType.Enum == itemState.configItem().extendedType()) {
+          JInvocation invocation = this.recommendersClass.staticInvoke("enumValues")
+              .arg(JExpr.dotClass(itemState.type()));
+
+          if (null != itemState.configItem().enumExcludes() && !itemState.configItem().enumExcludes().isEmpty()) {
+            for (String enumExclude : itemState.configItem().enumExcludes()) {
+              invocation.arg(JExpr.enumConstantRef((AbstractJClass) itemState.type(), enumExclude));
+            }
+          }
+          result.body()._return(invocation);
+        } else {
+          result.body()._return(JExpr._null());
+        }
+
+        result.javadoc().add("Method is used to define the Recommender that will be " +
+            "used for the '" + fullyQualifiedConfigItem + "' parameter.");
+        result.javadoc().addReturn().add("Recommender for the configurationA item. " +
+            "null if no recommender is desired.");
+      }
+    }
+  }
+
+  private ConfigurationState setupConfigState() throws JClassAlreadyExistsException {
+    ImmutableConfigurationState.Builder stateBuilder = ImmutableConfigurationState.builder()
+        .configuration(this.configurationA);
+
+    for (Configuration.Group group : this.configurationA.groups()) {
+      ImmutableGroupState.Builder groupStateBuilder = ImmutableGroupState.builder()
+          .groupConstant(addGroupConstant(group))
+          .group(group);
+
+      for (Configuration.ConfigItem item : group.configItems()) {
+        AbstractJType type = getItemType(item);
+        ImmutableConfigItemState.Builder itemStateBuilder = ImmutableConfigItemState.builder()
+            .configItem(item)
+            .type(type)
+            .confConstant(addConfConstant(this.configurationA, group, item))
+            .defaultConstant(addDefaultConstant(group, item))
+            .defaultPortConstant(addDefaultPortConstant(group, item))
+            .displayNameConstant(addDisplayNameConstant(group, item))
+            .docConstant(addDocConstant(group, item))
+            .methodName(methodName(group, item));
+
+        groupStateBuilder.addConfigItems(
+            itemStateBuilder.build()
+        );
+
+
+      }
+
+      stateBuilder.addGroups(groupStateBuilder.build());
+    }
+
+    return stateBuilder.build();
+  }
+
+  private JFieldVar addDefaultPortConstant(Configuration.Group group, Configuration.ConfigItem item) {
+    JFieldVar result;
+    if (Configuration.ExtendedType.HostAndPort != item.extendedType()) {
+      result = null;
+    } else {
+      String constantName = constantName(group, item, "default_port");
+      result = this.configClass.field(
+          CONSTANT,
+          Integer.class,
+          constantName
+      );
+      if (null == item.defaultPort()) {
+        result.init(JExpr._null());
+      } else {
+        result.init(JExpr.lit(item.defaultPort()));
+      }
+    }
+
+    return result;
+  }
+
+
+  private AbstractJType getItemType(Configuration.ConfigItem item) throws JClassAlreadyExistsException {
+    AbstractJType result;
+
+    if (Configuration.ExtendedType.None != item.extendedType()) {
+      switch (item.extendedType()) {
+        case Uri:
+          if (ConfigDef.Type.STRING == item.type()) {
+            result = this.model.ref(URI.class);
+          } else if (ConfigDef.Type.LIST == item.type()) {
+            result = this.listClass.narrow(URI.class);
+          } else {
+            throw new UnsupportedOperationException(
+                String.format(
+                    "%s has an unsupported combination of extendedType(%s) and type(%s)",
+                    item.configKey(),
+                    item.extendedType(),
+                    item.type()
+                )
+            );
+          }
+          break;
+        case Url:
+          if (ConfigDef.Type.STRING == item.type()) {
+            result = this.model.ref(URL.class);
+          } else if (ConfigDef.Type.LIST == item.type()) {
+            result = this.listClass.narrow(URL.class);
+          } else {
+            throw new UnsupportedOperationException(
+                String.format(
+                    "%s has an unsupported combination of extendedType(%s) and type(%s)",
+                    item.configKey(),
+                    item.extendedType(),
+                    item.type()
+                )
+            );
+          }
+          break;
+        case Charset:
+          result = this.model.ref(Charset.class);
+          break;
+        case HostAndPort:
+          if (ConfigDef.Type.STRING == item.type()) {
+            result = this.hostAndPortClass;
+          } else if (ConfigDef.Type.LIST == item.type()) {
+            result = this.listClass.narrow(this.hostAndPortClass);
+          } else {
+            throw new UnsupportedOperationException(
+                String.format(
+                    "%s has an unsupported combination of extendedType(%s) and type(%s)",
+                    item.configKey(),
+                    item.extendedType(),
+                    item.type()
+                )
+            );
+          }
+          break;
+        case Pattern:
+          result = this.patternClass;
+          break;
+        case Set:
+          result = this.setClass.narrow(String.class);
+          break;
+        case Enum:
+          if (null != item.enumValues() && !item.enumValues().isEmpty()) {
+            result = addEnum(item);
+          } else {
+            result = this.model.ref(item.enumType());
+          }
+          break;
+        default:
+          throw new UnsupportedOperationException(
+              String.format("%s", item.type())
+          );
+      }
+    } else {
+      switch (item.type()) {
+        case DOUBLE:
+          result = this.model.DOUBLE;
+          break;
+        case SHORT:
+          result = this.model.SHORT;
+          break;
+        case INT:
+          result = this.model.INT;
+          break;
+        case LONG:
+          result = this.model.LONG;
+          break;
+        case STRING:
+          result = this.model.ref(String.class);
+          break;
+        case PASSWORD:
+          result = this.configDefPasswordClass;
+          break;
+        case BOOLEAN:
+          result = this.model.BOOLEAN;
+          break;
+        case LIST:
+          result = this.model.ref(List.class).narrow(String.class);
+          break;
+        case CLASS:
+          result = this.model.ref(Class.class).narrow(this.model.wildcard());
+          break;
+        default:
+          throw new UnsupportedOperationException(
+              String.format("%s", item.type())
+          );
+      }
+    }
+
+
+    return result;
+  }
+
+  private AbstractJClass addEnum(Configuration.ConfigItem item) throws JClassAlreadyExistsException {
+    JDefinedClass result = this.configClass._enum(
+        JMod.PUBLIC,
+        item.enumType()
+    );
+    for (String s : item.enumValues()) {
+      result.enumConstant(s);
+    }
+    return result;
+  }
+
+
+  private JFieldVar addGroupConstant(Configuration.Group group) {
+    String constantName = "GROUP_" + group.name();
+    JFieldVar result = this.configClass.field(
+        CONSTANT,
+        String.class,
+        constantName
+    );
+    result.init(JExpr.lit(group.display()));
+    return result;
+  }
+
+
+  private static String methodName(
+      Configuration.Group group,
+      Configuration.ConfigItem item
+  ) {
+    return CaseFormat.LOWER_UNDERSCORE.to(
+        CaseFormat.LOWER_CAMEL,
+        String.format(
+            "%s%s",
+            group.prefix(),
+            item.configKey()
+        ).replace('.', '_')
+    );
+  }
+
+
+  private JMethod addValidatorMethod(
+      Configuration config,
+      Configuration.Group group,
+      Configuration.ConfigItem item) {
+    final String methodName = methodName(group, item) + "Validator";
+    final String fullyQualifiedConfigItem = fullyQualifiedConfigItem(
+        config, group, item
+    );
+    JMethod result = this.configOptionsInterface.method(
+        JMod.DEFAULT,
+        this.configDefValidatorClass,
+        methodName
+    );
+    result.body()._return(JExpr._null());
+    result.javadoc().add("Method is used to define the Validator that will be " +
+        "used for the '" + fullyQualifiedConfigItem + "' parameter.");
+    result.javadoc().addReturn().add("Validator for the configurationA item. " +
+        "null if no validator is desired.");
+    return result;
+  }
+
+  private JMethod addRecommenderMethod(
+      Configuration config,
+      Configuration.Group group,
+      Configuration.ConfigItem item) {
+    final String methodName = methodName(group, item) + "Recommender";
+    final String fullyQualifiedConfigItem = fullyQualifiedConfigItem(
+        config, group, item
+    );
+    JMethod result = this.configOptionsInterface.method(
+        JMod.DEFAULT,
+        this.configDefRecommenderClass,
+        methodName
+    );
+
+    if (Configuration.ExtendedType.Enum == item.extendedType()) {
+
+    } else {
+      result.body()._return(JExpr._null());
+    }
+
+
+    result.javadoc().add("Method is used to define the Recommender that will be " +
+        "used for the '" + fullyQualifiedConfigItem + "' parameter.");
+    result.javadoc().addReturn().add("Recommender for the configurationA item. " +
+        "null if no recommender is desired.");
+
+    return result;
+  }
+
+  private JFieldVar addDisplayNameConstant(Configuration.Group group, Configuration.ConfigItem item) {
+    String constantName = constantName(group, item, "display_name");
+    JFieldVar result = this.configClass.field(
+        CONSTANT,
+        Object.class,
+        constantName
+    );
+    if (!Strings.isNullOrEmpty(item.displayName())) {
+      result.init(JExpr.lit(item.displayName()));
+    } else {
+      result.init(JExpr._null());
+    }
+
+    return result;
+  }
+
+  private JFieldVar addDocConstant(Configuration.Group group, Configuration.ConfigItem item) {
+    String constantName = constantName(group, item, "doc");
+    JFieldVar result = this.configClass.field(
+        CONSTANT,
+        Object.class,
+        constantName
+    );
+    result.init(JExpr.lit(item.documentation()));
+
+    return result;
+  }
+
+  static final int CONSTANT = JMod.PUBLIC | JMod.STATIC | JMod.FINAL;
+
+  private JFieldVar addDefaultConstant(
+      Configuration.Group group,
+      Configuration.ConfigItem item
+  ) {
+    String constantName = constantName(group, item, "default");
+    JFieldVar result = this.configClass.field(
+        CONSTANT,
+        Object.class,
+        constantName
+    );
+
+    if (null == item.defaultValue()) {
+      result.init(this.configDefNoDefaultValue);
+    } else if (item.defaultValue() instanceof Number) {
+      Number number = (Number) item.defaultValue();
+      switch (item.type()) {
+        case DOUBLE:
+          result.init(JExpr.lit(number.doubleValue()));
+          break;
+        case SHORT:
+          result.init(JExpr.lit(number.shortValue()));
+          break;
+        case INT:
+          result.init(JExpr.lit(number.intValue()));
+          break;
+        case LONG:
+          result.init(JExpr.lit(number.longValue()));
+          break;
+      }
+    } else if (item.defaultValue() instanceof String) {
+      switch (item.type()) {
+        case STRING:
+          result.init(JExpr.lit(item.defaultValue().toString()));
+          break;
+        case PASSWORD:
+          result.init(
+              JExpr._new(configDefPasswordClass)
+                  .arg(item.defaultValue().toString())
+          );
+          break;
+      }
+
+    } else if (item.defaultValue() instanceof Boolean) {
+      result.init(JExpr.lit((Boolean) item.defaultValue()));
+    } else if (item.defaultValue() instanceof List) {
+      List<String> items = (List<String>) item.defaultValue();
+      JInvocation initExpression = arraysClass.staticInvoke("asList");
+      for (String o : items) {
+        initExpression.arg(o);
+      }
+
+      result.init(initExpression);
+    }
+
+    return result;
+  }
+
+  static String constantName(
+      Configuration.Group group,
+      Configuration.ConfigItem item,
+      String name) {
+    return CaseFormat.LOWER_UNDERSCORE.to(
+        CaseFormat.UPPER_UNDERSCORE,
+        String.format(
+            "%s%s_%s",
+            group.prefix(),
+            item.configKey(),
+            name
+        ).replace('.', '_')
+    );
+  }
+
+  public String fullyQualifiedConfigItem(
+      Configuration configuration,
+      Configuration.Group group,
+      Configuration.ConfigItem item
+  ) {
+    return String.format(
+        "%s%s%s",
+        configuration.prefix(),
+        group.prefix(),
+        item.configKey()
+    );
+  }
+
+  private JFieldVar addConfConstant(
+      Configuration configuration,
+      Configuration.Group group,
+      Configuration.ConfigItem item
+  ) {
+    String constantName = constantName(group, item, "conf");
+    String fullyQualifiedConfig = fullyQualifiedConfigItem(
+        configuration,
+        group,
+        item
+    );
+    JFieldVar result = this.configClass.field(
+        CONSTANT,
+        String.class,
+        constantName
+    );
+    result.init(JExpr.lit(fullyQualifiedConfig));
+
+    return result;
+  }
+
+  private void setupConfigMethod(ConfigurationState configurationState) {
     JVar configVar = this.configMethod.body().decl(
         this.configDefClass,
         "config"
@@ -265,43 +760,34 @@ public class ConfigClassGenerator {
       configVar.init(this.baseConfigClass.staticInvoke(this.configMethod));
     }
 
-    for (Configuration.Group group : this.configuration.groups()) {
+    for (ConfigurationState.GroupState groupState : configurationState.groups()) {
       this.configMethod.body().addSingleLineComment(
-          String.format("Start %s", group.display())
+          String.format("Start %s", groupState.group().display())
       );
-      JFieldVar groupConstant = group.displayConstant(this.configClass);
 
-      for (Configuration.ConfigItem configItem : group.configItems()) {
-        JFieldVar confConstant = configItem.configConstant(this.configClass);
-        JFieldVar docConstant = configItem.docConstant(this.configClass);
-        JFieldVar defaultConstant = configItem.defaultConstant(
-            this.configClass,
-            this.configDefNoDefaltValue,
-            this.arraysClass,
-            this.configDefPasswordClass
-        );
-        JFieldVar displayNameConstant = configItem.displayNameConstant(this.configClass);
-        JFieldRef typeReference = configReferenceLookup.get(configItem.type());
-        JFieldRef importanceReference = configImportanceLookup.get(configItem.importance());
-        JFieldRef widthReference = configWidthLookup.get(configItem.width());
+
+      for (ConfigurationState.ConfigItemState configItemState : groupState.configItems()) {
+        JFieldRef typeReference = configReferenceLookup.get(configItemState.configItem().type());
+        JFieldRef importanceReference = configImportanceLookup.get(configItemState.configItem().importance());
+        JFieldRef widthReference = configWidthLookup.get(configItemState.configItem().width());
 
         JInvocation invocation = this.configItemBuilderClass.staticInvoke("of")
-            .arg(confConstant)
+            .arg(configItemState.confConstant())
             .arg(typeReference);
         invocation = JExpr.invoke(invocation, "recommender")
             .arg(JExpr.invoke(configMethodOptionsVar, "recommender"));
         invocation = JExpr.invoke(invocation, "validator")
             .arg(JExpr.invoke(configMethodOptionsVar, "validator"));
         invocation = JExpr.invoke(invocation, "defaultValue")
-            .arg(defaultConstant);
+            .arg(configItemState.defaultConstant());
         invocation = JExpr.invoke(invocation, "documentation")
-            .arg(docConstant);
+            .arg(configItemState.docConstant());
         invocation = JExpr.invoke(invocation, "importance")
             .arg(importanceReference);
         invocation = JExpr.invoke(invocation, "group")
-            .arg(groupConstant);
+            .arg(groupState.groupConstant());
         invocation = JExpr.invoke(invocation, "displayName")
-            .arg(displayNameConstant);
+            .arg(configItemState.displayNameConstant());
         invocation = JExpr.invoke(invocation, "width")
             .arg(widthReference);
         invocation = JExpr.invoke(invocation, "build");
@@ -313,7 +799,7 @@ public class ConfigClassGenerator {
         );
       }
       this.configMethod.body().addSingleLineComment(
-          String.format("End %s", group.display())
+          String.format("End %s", groupState.group().display())
       );
     }
 
@@ -321,40 +807,102 @@ public class ConfigClassGenerator {
     this.configMethod.body()._return(configVar);
   }
 
-  private void setupConstants() {
-    final int mod = JMod.PUBLIC | JMod.STATIC | JMod.FINAL;
 
-    for (Configuration.Group group : this.configuration.groups()) {
-      JFieldVar groupConstant = group.displayConstant(this.configClass);
-
-      for (Configuration.ConfigItem configItem : group.configItems()) {
-        JFieldVar confConstant = configItem.configConstant(this.configClass);
-        JFieldVar docConstant = configItem.docConstant(this.configClass);
-        JFieldVar defaultConstant = configItem.defaultConstant(
-            this.configClass,
-            this.configDefNoDefaltValue,
-            this.arraysClass,
-            this.configDefPasswordClass
-        );
-      }
-    }
-  }
-
-  private void setupConfigMethods() {
+  private void setupConfigMethods(ConfigurationState configurationState) {
     final int mod = JMod.PUBLIC;
 
-    for (Configuration.Group group : this.configuration.groups()) {
-      for (Configuration.ConfigItem configItem : group.configItems()) {
-        AbstractJType configType = this.configTypeLookup.get(configItem.type());
-        JMethod method = this.configClass.method(mod, configType, configItem.methodName());
-        method.javadoc().add(configItem.documentation());
-        method.javadoc().addReturn().add(configItem.documentation());
-        String configMethod = this.configMethodLookup.get(configItem.type());
+    for (ConfigurationState.GroupState groupState : configurationState.groups()) {
+      for (ConfigurationState.ConfigItemState configItemState : groupState.configItems()) {
+        JMethod method = this.configClass.method(mod, configItemState.type(), configItemState.methodName());
+        method.javadoc().add(configItemState.configItem().documentation());
+        method.javadoc().addReturn().add(configItemState.configItem().documentation());
 
-        method.body()._return(
-            JExpr.invoke(configMethod)
-                .arg(configItem.configConstant(this.configClass))
-        );
+        if (Configuration.ExtendedType.None == configItemState.configItem().extendedType()) {
+          String configMethod = this.configMethodLookup.get(configItemState.configItem().type());
+          method.body()._return(
+              JExpr.invoke(configMethod)
+                  .arg(configItemState.confConstant())
+          );
+        } else if (Configuration.ExtendedType.Charset == configItemState.configItem().extendedType()) {
+          JVar charsetNameVar = method.body().decl(JMod.FINAL, this.stringClass, "charsetName");
+          JTryBlock tryBlock = method.body()._try();
+
+          charsetNameVar.init(
+              JExpr.invoke("getString")
+                  .arg(configItemState.confConstant())
+          );
+          tryBlock.body()._return(
+              charsetClass.staticInvoke("forName")
+                  .arg(charsetNameVar)
+          );
+
+          JCatchBlock catchUnsupportedCharsetException = tryBlock._catch(this.unsupportedCharsetExceptionClass);
+          JVar varException = catchUnsupportedCharsetException.body().decl(
+              this.configExceptionClass,
+              "exception"
+          );
+          varException.init(
+              JExpr._new(this.configExceptionClass)
+                  .arg(configItemState.confConstant())
+                  .arg(charsetNameVar)
+                  .arg("Invalid charset.")
+          );
+          catchUnsupportedCharsetException.body().add(
+              JExpr.invoke(varException, "initCause")
+                  .arg(catchUnsupportedCharsetException.param("ex"))
+          );
+          catchUnsupportedCharsetException.body()._throw(varException);
+        } else if (Configuration.ExtendedType.Enum == configItemState.configItem().extendedType()) {
+          method.body()._return(
+              this.configUtilsClass.staticInvoke("getEnum")
+                  .arg(JExpr.dotClass(configItemState.type()))
+                  .arg(JExpr._this())
+                  .arg(configItemState.confConstant())
+          );
+        } else if (Configuration.ExtendedType.HostAndPort == configItemState.configItem().extendedType()) {
+          String methodName = ConfigDef.Type.LIST == configItemState.configItem().type() ?
+              "hostAndPorts" :
+              "hostAndPort";
+
+          method.body()._return(
+              this.configUtilsClass.staticInvoke(methodName)
+                  .arg(JExpr._this())
+                  .arg(configItemState.confConstant())
+                  .arg(configItemState.defaultPortConstant())
+          );
+        } else if (Configuration.ExtendedType.Uri == configItemState.configItem().extendedType()) {
+          String methodName = ConfigDef.Type.LIST == configItemState.configItem().type() ?
+              "uri" :
+              "uris";
+
+          method.body()._return(
+              this.configUtilsClass.staticInvoke(methodName)
+                  .arg(JExpr._this())
+                  .arg(configItemState.confConstant())
+          );
+        } else if (Configuration.ExtendedType.Url == configItemState.configItem().extendedType()) {
+          String methodName = ConfigDef.Type.LIST == configItemState.configItem().type() ?
+              "url" :
+              "urls";
+
+          method.body()._return(
+              this.configUtilsClass.staticInvoke(methodName)
+                  .arg(JExpr._this())
+                  .arg(configItemState.confConstant())
+          );
+        } else if (Configuration.ExtendedType.Pattern == configItemState.configItem().extendedType()) {
+          method.body()._return(
+              this.configUtilsClass.staticInvoke("pattern")
+                  .arg(JExpr._this())
+                  .arg(configItemState.confConstant())
+          );
+        } else if (Configuration.ExtendedType.Set == configItemState.configItem().extendedType()) {
+          method.body()._return(
+              this.configUtilsClass.staticInvoke("getSet")
+                  .arg(JExpr._this())
+                  .arg(configItemState.confConstant())
+          );
+        }
       }
     }
   }

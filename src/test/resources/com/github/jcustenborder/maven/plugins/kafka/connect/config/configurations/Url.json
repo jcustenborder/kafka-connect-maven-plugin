@@ -1,0 +1,29 @@
+{
+  "name": "com.github.jcustenborder.kafka.connect.testing.UrlSourceConnectorConfig",
+  "prefix": "myconn.",
+  "groups": [
+    {
+      "name": "SSL",
+      "display": "SSL ConfigurationA",
+      "prefix": "ssl.",
+      "configItems": [
+        {
+          "configKey": "url.test",
+          "type": "STRING",
+          "documentation": "Location of the Java keystore to use.",
+          "importance": "HIGH",
+          "width": "MEDIUM",
+          "extendedType": "Url"
+        },
+        {
+          "configKey": "urls.test",
+          "type": "LIST",
+          "documentation": "Location of the Java keystore to use.",
+          "importance": "HIGH",
+          "width": "MEDIUM",
+          "extendedType": "Url"
+        }
+      ]
+    }
+  ]
+}

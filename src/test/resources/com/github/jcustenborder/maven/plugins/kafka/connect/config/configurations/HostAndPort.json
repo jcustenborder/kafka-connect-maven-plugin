@@ -1,0 +1,47 @@
+{
+  "name": "com.github.jcustenborder.kafka.connect.testing.HostAndPortSourceConnectorConfig",
+  "prefix": "myconn.",
+  "groups": [
+    {
+      "name": "SSL",
+      "display": "SSL ConfigurationA",
+      "prefix": "ssl.",
+      "configItems": [
+        {
+          "configKey": "host.no.default.port.single",
+          "type": "STRING",
+          "documentation": "Location of the Java keystore to use.",
+          "importance": "HIGH",
+          "width": "MEDIUM",
+          "extendedType": "HostAndPort"
+        },
+        {
+          "configKey": "host.default.port.single",
+          "type": "STRING",
+          "documentation": "Location of the Java keystore to use.",
+          "importance": "HIGH",
+          "width": "MEDIUM",
+          "extendedType": "HostAndPort",
+          "defaultPort": 8081
+        },
+        {
+          "configKey": "host.no.default.port.list",
+          "type": "LIST",
+          "documentation": "Location of the Java keystore to use.",
+          "importance": "HIGH",
+          "width": "MEDIUM",
+          "extendedType": "HostAndPort"
+        },
+        {
+          "configKey": "host.default.port.list",
+          "type": "LIST",
+          "documentation": "Location of the Java keystore to use.",
+          "importance": "HIGH",
+          "width": "MEDIUM",
+          "extendedType": "HostAndPort",
+          "defaultPort": 8081
+        }
+      ]
+    }
+  ]
+}

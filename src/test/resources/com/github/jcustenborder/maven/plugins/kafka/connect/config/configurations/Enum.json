@@ -1,0 +1,47 @@
+{
+  "name": "com.github.jcustenborder.kafka.connect.testing.EnumSourceConnectorConfig",
+  "prefix": "myconn.",
+  "groups": [
+    {
+      "name": "SSL",
+      "display": "SSL ConfigurationA",
+      "prefix": "ssl.",
+      "configItems": [
+        {
+          "configKey": "enum.test",
+          "type": "STRING",
+          "documentation": "Location of the Java keystore to use.",
+          "importance": "HIGH",
+          "width": "MEDIUM",
+          "extendedType": "Enum",
+          "enumType": "TestEnum",
+          "enumValues": [
+            "First",
+            "Second",
+            "Third"
+          ]
+        },
+        {
+          "configKey": "enum.exclude.test",
+          "type": "STRING",
+          "documentation": "Location of the Java keystore to use.",
+          "importance": "HIGH",
+          "width": "MEDIUM",
+          "extendedType": "Enum",
+          "enumType": "TestEnum1",
+          "enumValues": [
+            "First",
+            "Second",
+            "Third",
+            "Fourth",
+            "Fifth"
+          ],
+          "enumExcludes": [
+            "First",
+            "Second"
+          ]
+        }
+      ]
+    }
+  ]
+}

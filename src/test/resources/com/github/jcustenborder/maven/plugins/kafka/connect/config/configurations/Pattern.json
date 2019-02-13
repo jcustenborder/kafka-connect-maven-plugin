@@ -1,0 +1,21 @@
+{
+  "name": "com.github.jcustenborder.kafka.connect.testing.PatternSourceConnectorConfig",
+  "prefix": "myconn.",
+  "groups": [
+    {
+      "name": "SSL",
+      "display": "SSL ConfigurationA",
+      "prefix": "ssl.",
+      "configItems": [
+        {
+          "configKey": "set.test",
+          "type": "LIST",
+          "documentation": "Location of the Java keystore to use.",
+          "importance": "HIGH",
+          "width": "MEDIUM",
+          "extendedType": "Pattern"
+        }
+      ]
+    }
+  ]
+}

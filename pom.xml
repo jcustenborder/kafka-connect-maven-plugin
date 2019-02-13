@@ -1,7 +1,8 @@
 <?xml version="1.0"?>
-<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
-         xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<project
+        xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+        xmlns="http://maven.apache.org/POM/4.0.0"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.github.jcustenborder.maven.plugins</groupId>
     <artifactId>kafka-connect-maven-plugin</artifactId>
@@ -31,8 +32,10 @@
         <maven>3.3.0</maven>
     </prerequisites>
     <scm>
-        <connection>scm:git:https://github.com/jcustenborder/gh-settings-maven-plugin.git</connection>
-        <developerConnection>scm:git:git@github.com:jcustenborder/gh-settings-maven-plugin.git</developerConnection>
+        <connection>scm:git:https://github.com/jcustenborder/gh-settings-maven-plugin.git
+        </connection>
+        <developerConnection>scm:git:git@github.com:jcustenborder/gh-settings-maven-plugin.git
+        </developerConnection>
         <url>https://api.github.com/repos/jcustenborder/gh-settings-maven-plugin</url>
     </scm>
     <issueManagement>
@@ -40,22 +43,19 @@
         <url>https://api.github.com/repos/jcustenborder/gh-settings-maven-plugin/issues</url>
     </issueManagement>
     <properties>
-        <jaxb.version>2.2.11</jaxb.version>
+        <jackson.version>2.9.8</jackson.version>
         <mockito.version>2.6.3</mockito.version>
         <junit.surefire.plugin.version>1.0.0</junit.surefire.plugin.version>
         <junit.version>5.4.0</junit.version>
     </properties>
     <dependencies>
+
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>27.0.1-jre</version>
         </dependency>
-        <dependency>
-            <groupId>org.kohsuke</groupId>
-            <artifactId>github-api</artifactId>
-            <version>1.84</version>
-        </dependency>
+
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka-clients</artifactId>
@@ -65,6 +65,24 @@
             <groupId>com.helger</groupId>
             <artifactId>jcodemodel</artifactId>
             <version>3.2.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-guava</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.immutables</groupId>
+            <artifactId>value</artifactId>
+            <version>2.7.4</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.maven</groupId>
