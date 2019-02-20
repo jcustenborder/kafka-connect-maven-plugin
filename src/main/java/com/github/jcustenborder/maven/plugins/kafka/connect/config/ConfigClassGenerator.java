@@ -159,7 +159,7 @@ public class ConfigClassGenerator {
       this.baseConfigClassOptionsInterface = null;
     } else {
       this.baseConfigClass = this.model.ref(this.configurationA._extends());
-      this.baseConfigClassOptionsInterface = this.model.ref(this.configurationA._extends() + "ConfigOptions");
+      this.baseConfigClassOptionsInterface = this.model.ref(this.configurationA._extends() + ".ConfigOptions");
     }
   }
 
