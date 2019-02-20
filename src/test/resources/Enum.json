@@ -40,6 +40,27 @@
             "First",
             "Second"
           ]
+        },
+        {
+          "configKey": "enum.exclude.with.default",
+          "type": "STRING",
+          "documentation": "Location of the Java keystore to use.",
+          "importance": "HIGH",
+          "width": "MEDIUM",
+          "extendedType": "Enum",
+          "enumType": "TestEnum2",
+          "enumValues": [
+            "First",
+            "Second",
+            "Third",
+            "Fourth",
+            "Fifth"
+          ],
+          "enumExcludes": [
+            "First",
+            "Second"
+          ],
+          "defaultValue": "First"
         }
       ]
     }
