@@ -799,7 +799,7 @@ public class ConfigClassGenerator {
     if (null == this.baseConfigClass) {
       configVar.init(JExpr._new(this.configDefClass));
     } else {
-      configVar.init(this.baseConfigClass.staticInvoke(this.configMethod));
+      configVar.init(this.baseConfigClass.staticInvoke(this.configMethod).arg(this.configMethodOptionsVar));
     }
 
     for (ConfigurationState.GroupState groupState : configurationState.groups()) {
