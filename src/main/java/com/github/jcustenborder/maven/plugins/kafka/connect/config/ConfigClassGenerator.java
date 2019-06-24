@@ -9,7 +9,6 @@ import com.helger.jcodemodel.AbstractJClass;
 import com.helger.jcodemodel.AbstractJType;
 import com.helger.jcodemodel.EClassType;
 import com.helger.jcodemodel.IJExpression;
-import com.helger.jcodemodel.JCatchBlock;
 import com.helger.jcodemodel.JClassAlreadyExistsException;
 import com.helger.jcodemodel.JCodeModel;
 import com.helger.jcodemodel.JDefinedClass;
@@ -19,7 +18,6 @@ import com.helger.jcodemodel.JFieldVar;
 import com.helger.jcodemodel.JInvocation;
 import com.helger.jcodemodel.JMethod;
 import com.helger.jcodemodel.JMod;
-import com.helger.jcodemodel.JTryBlock;
 import com.helger.jcodemodel.JVar;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
@@ -163,6 +161,8 @@ public class ConfigClassGenerator {
     }
   }
 
+  JMethod constructorWithLog;
+
   private void setupClass() throws JClassAlreadyExistsException {
     this.configClass = this.model._class(
         JMod.PUBLIC,
@@ -203,12 +203,13 @@ public class ConfigClassGenerator {
     JVar definition = constructor.param(configDefClass, "definition");
     JVar originalsVar = constructor.param(wildcardMapClass, "originals");
     constructor.body().add(
-        JExpr.invoke("super")
+        JExpr.invoke("this")
             .arg(definition)
             .arg(originalsVar)
+            .arg(false)
     );
 
-    JMethod constructorWithLog = this.configClass.constructor(JMod.PUBLIC);
+    this.constructorWithLog = this.configClass.constructor(JMod.PUBLIC);
     definition = constructorWithLog.param(configDefClass, "definition");
     originalsVar = constructorWithLog.param(wildcardMapClass, "originals");
     JVar doLogVar = constructorWithLog.param(boolean.class, "dolog");
@@ -851,51 +852,37 @@ public class ConfigClassGenerator {
 
 
   private void setupConfigMethods(ConfigurationState configurationState) {
-    final int mod = JMod.PUBLIC;
+    final int methodMod = JMod.PUBLIC;
+    final int fieldMod = JMod.PRIVATE_FINAL;
 
     for (ConfigurationState.GroupState groupState : configurationState.groups()) {
       for (ConfigurationState.ConfigItemState itemState : groupState.configItems()) {
-        JMethod method = this.configClass.method(mod, itemState.type(), itemState.methodName());
+        JMethod method = this.configClass.method(methodMod, itemState.type(), itemState.methodName());
+        JFieldVar fieldVar = this.configClass.field(fieldMod, itemState.type(), itemState.methodName());
+        JFieldRef thisField = JExpr._this().ref(fieldVar);
+
         method.javadoc().add(itemState.configItem().documentation());
         method.javadoc().addReturn().add(itemState.configItem().documentation());
+        method.body()._return(thisField);
 
         if (Configuration.ExtendedType.None == itemState.configItem().extendedType()) {
           String configMethod = this.configMethodLookup.get(itemState.configItem().type());
-          method.body()._return(
+          this.constructorWithLog.body().assign(
+              thisField,
               JExpr.invoke(configMethod)
                   .arg(itemState.confConstant())
           );
         } else if (Configuration.ExtendedType.Charset == itemState.configItem().extendedType()) {
-          JVar charsetNameVar = method.body().decl(JMod.FINAL, this.stringClass, "charsetName");
-          JTryBlock tryBlock = method.body()._try();
-
-          charsetNameVar.init(
-              JExpr.invoke("getString")
+          this.constructorWithLog.body().assign(
+              thisField,
+              this.configUtilsClass.staticInvoke("charset")
+                  .arg(JExpr.dotClass(itemState.type()))
+                  .arg(JExpr._this())
                   .arg(itemState.confConstant())
           );
-          tryBlock.body()._return(
-              charsetClass.staticInvoke("forName")
-                  .arg(charsetNameVar)
-          );
-
-          JCatchBlock catchUnsupportedCharsetException = tryBlock._catch(this.unsupportedCharsetExceptionClass);
-          JVar varException = catchUnsupportedCharsetException.body().decl(
-              this.configExceptionClass,
-              "exception"
-          );
-          varException.init(
-              JExpr._new(this.configExceptionClass)
-                  .arg(itemState.confConstant())
-                  .arg(charsetNameVar)
-                  .arg("Invalid charset.")
-          );
-          catchUnsupportedCharsetException.body().add(
-              JExpr.invoke(varException, "initCause")
-                  .arg(catchUnsupportedCharsetException.param("ex"))
-          );
-          catchUnsupportedCharsetException.body()._throw(varException);
         } else if (Configuration.ExtendedType.Enum == itemState.configItem().extendedType()) {
-          method.body()._return(
+          this.constructorWithLog.body().assign(
+              thisField,
               this.configUtilsClass.staticInvoke("getEnum")
                   .arg(JExpr.dotClass(itemState.type()))
                   .arg(JExpr._this())
@@ -905,8 +892,8 @@ public class ConfigClassGenerator {
           String methodName = ConfigDef.Type.LIST == itemState.configItem().type() ?
               "hostAndPorts" :
               "hostAndPort";
-
-          method.body()._return(
+          this.constructorWithLog.body().assign(
+              thisField,
               this.configUtilsClass.staticInvoke(methodName)
                   .arg(JExpr._this())
                   .arg(itemState.confConstant())
@@ -916,8 +903,8 @@ public class ConfigClassGenerator {
           String methodName = ConfigDef.Type.LIST == itemState.configItem().type() ?
               "uri" :
               "uris";
-
-          method.body()._return(
+          this.constructorWithLog.body().assign(
+              thisField,
               this.configUtilsClass.staticInvoke(methodName)
                   .arg(JExpr._this())
                   .arg(itemState.confConstant())
@@ -926,32 +913,36 @@ public class ConfigClassGenerator {
           String methodName = ConfigDef.Type.LIST == itemState.configItem().type() ?
               "url" :
               "urls";
-
-          method.body()._return(
+          this.constructorWithLog.body().assign(
+              thisField,
               this.configUtilsClass.staticInvoke(methodName)
                   .arg(JExpr._this())
                   .arg(itemState.confConstant())
           );
         } else if (Configuration.ExtendedType.Pattern == itemState.configItem().extendedType()) {
-          method.body()._return(
+          this.constructorWithLog.body().assign(
+              thisField,
               this.configUtilsClass.staticInvoke("pattern")
                   .arg(JExpr._this())
                   .arg(itemState.confConstant())
           );
         } else if (Configuration.ExtendedType.Set == itemState.configItem().extendedType()) {
-          method.body()._return(
+          this.constructorWithLog.body().assign(
+              thisField,
               this.configUtilsClass.staticInvoke("getSet")
                   .arg(JExpr._this())
                   .arg(itemState.confConstant())
           );
         } else if (Configuration.ExtendedType.PasswordBytes == itemState.configItem().extendedType()) {
-          method.body()._return(
+          this.constructorWithLog.body().assign(
+              thisField,
               this.configUtilsClass.staticInvoke("passwordBytes")
                   .arg(JExpr._this())
                   .arg(itemState.confConstant())
           );
         } else if (Configuration.ExtendedType.PasswordCharArray == itemState.configItem().extendedType()) {
-          method.body()._return(
+          this.constructorWithLog.body().assign(
+              thisField,
               this.configUtilsClass.staticInvoke("passwordCharArray")
                   .arg(JExpr._this())
                   .arg(itemState.confConstant())
@@ -965,31 +956,36 @@ public class ConfigClassGenerator {
               )
           );
         } else if (Configuration.ExtendedType.SSLContext == itemState.configItem().extendedType()) {
-          method.body()._return(
+          this.constructorWithLog.body().assign(
+              thisField,
               this.configUtilsClass.staticInvoke("sslContext")
                   .arg(JExpr._this())
                   .arg(itemState.confConstant())
           );
         } else if (Configuration.ExtendedType.TrustManagerFactory == itemState.configItem().extendedType()) {
-          method.body()._return(
+          this.constructorWithLog.body().assign(
+              thisField,
               this.configUtilsClass.staticInvoke("trustManagerFactory")
                   .arg(JExpr._this())
                   .arg(itemState.confConstant())
           );
         } else if (Configuration.ExtendedType.KeyStore == itemState.configItem().extendedType()) {
-          method.body()._return(
+          this.constructorWithLog.body().assign(
+              thisField,
               this.configUtilsClass.staticInvoke("keyStore")
                   .arg(JExpr._this())
                   .arg(itemState.confConstant())
           );
         } else if (Configuration.ExtendedType.KeyManagerFactory == itemState.configItem().extendedType()) {
-          method.body()._return(
+          this.constructorWithLog.body().assign(
+              thisField,
               this.configUtilsClass.staticInvoke("keyManagerFactory")
                   .arg(JExpr._this())
                   .arg(itemState.confConstant())
           );
         } else if (Configuration.ExtendedType.File == itemState.configItem().extendedType()) {
-          method.body()._return(
+          this.constructorWithLog.body().assign(
+              thisField,
               this.configUtilsClass.staticInvoke("getAbsoluteFile")
                   .arg(JExpr._this())
                   .arg(itemState.confConstant())

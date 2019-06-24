@@ -50,7 +50,7 @@
     <properties>
         <mockito.version>2.6.3</mockito.version>
         <junit.surefire.plugin.version>1.0.0</junit.surefire.plugin.version>
-        <jackson.version>2.9.8</jackson.version>
+        <jackson.version>[2.9.9,)</jackson.version>
         <junit.version>5.4.0</junit.version>
     </properties>
     <dependencies>
