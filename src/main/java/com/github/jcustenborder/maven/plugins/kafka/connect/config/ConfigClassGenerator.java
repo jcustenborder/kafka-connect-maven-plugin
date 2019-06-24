@@ -269,7 +269,12 @@ public class ConfigClassGenerator {
               .arg(JExpr.dotClass(itemState.type()));
           if (null != itemState.configItem().enumExcludes() && !itemState.configItem().enumExcludes().isEmpty()) {
             for (String enumExclude : itemState.configItem().enumExcludes()) {
-              invocation.arg(JExpr.enumConstantRef((AbstractJClass) itemState.type(), enumExclude));
+              invocation.arg(
+                  JExpr.invoke(
+                      JExpr.enumConstantRef((AbstractJClass) itemState.type(), enumExclude),
+                      "toString"
+                  )
+              );
             }
           }
           result.body()._return(invocation);
@@ -876,7 +881,6 @@ public class ConfigClassGenerator {
           this.constructorWithLog.body().assign(
               thisField,
               this.configUtilsClass.staticInvoke("charset")
-                  .arg(JExpr.dotClass(itemState.type()))
                   .arg(JExpr._this())
                   .arg(itemState.confConstant())
           );
@@ -901,8 +905,8 @@ public class ConfigClassGenerator {
           );
         } else if (Configuration.ExtendedType.Uri == itemState.configItem().extendedType()) {
           String methodName = ConfigDef.Type.LIST == itemState.configItem().type() ?
-              "uri" :
-              "uris";
+              "uris" :
+              "uri";
           this.constructorWithLog.body().assign(
               thisField,
               this.configUtilsClass.staticInvoke(methodName)
@@ -911,8 +915,8 @@ public class ConfigClassGenerator {
           );
         } else if (Configuration.ExtendedType.Url == itemState.configItem().extendedType()) {
           String methodName = ConfigDef.Type.LIST == itemState.configItem().type() ?
-              "url" :
-              "urls";
+              "urls" :
+              "url";
           this.constructorWithLog.body().assign(
               thisField,
               this.configUtilsClass.staticInvoke(methodName)
