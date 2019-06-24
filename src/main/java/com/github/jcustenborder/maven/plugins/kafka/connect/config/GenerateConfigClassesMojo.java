@@ -40,6 +40,7 @@ public class GenerateConfigClassesMojo extends AbstractMojo {
   @Override
   public void execute() throws MojoExecutionException, MojoFailureException {
     if (!outputPath.exists()) {
+      getLog().debug("Creating output directory " + outputPath);
       outputPath.mkdirs();
     }
 
@@ -65,6 +66,8 @@ public class GenerateConfigClassesMojo extends AbstractMojo {
         String.format("Found %s input file(s).", configFiles.size())
     );
 
+    int errors = 0;
+
     for (File inputFile : configFiles) {
       getLog().info(
           String.format("Processing %s.", inputFile)
@@ -86,7 +89,14 @@ public class GenerateConfigClassesMojo extends AbstractMojo {
         codeModel.build(this.outputPath);
       } catch (Exception ex) {
         getLog().error(ex);
+        errors++;
       }
+    }
+
+    if (errors > 0) {
+      throw new MojoFailureException(
+          errors + " error(s) were encountered."
+      );
     }
 
     this.project.addCompileSourceRoot(this.outputPath.getAbsolutePath());
