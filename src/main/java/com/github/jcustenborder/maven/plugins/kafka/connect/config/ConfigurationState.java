@@ -41,5 +41,9 @@ interface ConfigurationState {
     AbstractJType type();
 
     String methodName();
+
+    String recommenderMethodName();
+
+    String validatorMethodName();
   }
 }

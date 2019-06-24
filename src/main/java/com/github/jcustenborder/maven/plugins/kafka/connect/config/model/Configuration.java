@@ -133,6 +133,16 @@ public interface Configuration {
     @Nullable
     @JsonProperty(value = "defaultPort")
     Integer defaultPort();
+
+    @Nullable
+    @JsonProperty(value = "requireBracketsForIPv6")
+    @Value.Default
+    default Boolean requireBracketsForIPv6(){return false;}
+
+    @Nullable
+    @JsonProperty(value = "portRequired")
+    @Value.Default
+    default Boolean portRequired(){return false;}
   }
 
   enum ExtendedType {
@@ -143,6 +153,14 @@ public interface Configuration {
     HostAndPort,
     Charset,
     Pattern,
-    Set
+    Set,
+    PasswordBytes,
+    PasswordCharArray,
+    PasswordString,
+    KeyStore,
+    KeyManagerFactory,
+    TrustManagerFactory,
+    SSLContext,
+    File
   }
 }
