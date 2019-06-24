@@ -4,7 +4,7 @@
   "groups": [
     {
       "name": "SSL",
-      "display": "SSL ConfigurationA",
+      "display": "SSL Configuration",
       "prefix": "ssl.",
       "configItems": [
         {
