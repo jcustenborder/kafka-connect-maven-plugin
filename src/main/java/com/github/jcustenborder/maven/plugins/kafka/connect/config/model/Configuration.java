@@ -25,14 +25,14 @@ import java.util.Set;
 @JsonDeserialize(as = ImmutableConfiguration.class)
 public interface Configuration {
 
-  public static void save(Configuration configurationA, File outputPath) throws IOException {
+  public static void save(Configuration Configuration, File outputPath) throws IOException {
     try (OutputStream outputStream = new FileOutputStream(outputPath)) {
-      save(configurationA, outputStream);
+      save(Configuration, outputStream);
     }
   }
 
-  public static void save(Configuration configurationA, OutputStream outputStream) throws IOException {
-    ObjectMapperFactory.INSTANCE.writeValue(outputStream, configurationA);
+  public static void save(Configuration Configuration, OutputStream outputStream) throws IOException {
+    ObjectMapperFactory.INSTANCE.writeValue(outputStream, Configuration);
   }
 
   public static Configuration load(File inputFile) throws IOException {

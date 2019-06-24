@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
 
 public class ConfigClassGenerator {
   private final JCodeModel model;
-  private final Configuration configurationA;
+  private final Configuration configuration;
   private final AbstractJClass abstractConfigClass;
   private final AbstractJClass configDefClass;
   private final AbstractJClass configDefImportanceClass;
@@ -83,6 +83,8 @@ public class ConfigClassGenerator {
   JMethod configMethod;
   JVar configMethodOptionsVar;
   JDefinedClass configOptionsInterface;
+  JDefinedClass configOptionsImplementation;
+
 
   public ConfigClassGenerator(JCodeModel model, Configuration config) {
     this.model = model;
@@ -97,7 +99,7 @@ public class ConfigClassGenerator {
     this.configDefNoDefaultValue = this.configDefClass.staticRef("NO_DEFAULT_VALUE");
     this.configItemBuilderClass = model.ref("com.github.jcustenborder.kafka.connect.utils.config.ConfigKeyBuilder");
     this.configUtilsClass = model.ref("com.github.jcustenborder.kafka.connect.utils.config.ConfigUtils");
-    this.configurationA = config;
+    this.configuration = config;
     this.arraysClass = model.ref(Arrays.class);
     this.charsetClass = model.ref(Charset.class);
     this.stringClass = model.ref(String.class);
@@ -152,12 +154,12 @@ public class ConfigClassGenerator {
         .map(e -> new AbstractMap.SimpleEntry<>(e, this.configDefWidthClass.staticRef(e.toString())))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-    if (Strings.isNullOrEmpty(this.configurationA._extends())) {
+    if (Strings.isNullOrEmpty(this.configuration._extends())) {
       this.baseConfigClass = null;
       this.baseConfigClassOptionsInterface = null;
     } else {
-      this.baseConfigClass = this.model.ref(this.configurationA._extends());
-      this.baseConfigClassOptionsInterface = this.model.ref(this.configurationA._extends() + ".ConfigOptions");
+      this.baseConfigClass = this.model.ref(this.configuration._extends());
+      this.baseConfigClassOptionsInterface = this.model.ref(this.configuration._extends() + ".ConfigOptions");
     }
   }
 
@@ -166,14 +168,27 @@ public class ConfigClassGenerator {
   private void setupClass() throws JClassAlreadyExistsException {
     this.configClass = this.model._class(
         JMod.PUBLIC,
-        this.configurationA.name(),
+        this.configuration.name(),
         EClassType.CLASS
     );
     this.configClass.annotate(Generated.class).param("generate-config-classes");
 
     this.configOptionsInterface = this.configClass._interface("ConfigOptions");
     this.configOptionsInterface.javadoc().add("Interface is used to configure the Recommenders and " +
-        "Validators for this configurationA.");
+        "Validators for this Configuration.");
+
+    this.configOptionsImplementation = this.configClass._class(
+        JMod.STATIC,
+        "ConfigOptionsImpl"
+    );
+    this.configOptionsImplementation._implements(this.configOptionsInterface);
+
+    JFieldVar defaultConfigOptionsField = this.configClass.field(
+        JMod.STATIC | JMod.FINAL | JMod.PUBLIC,
+        this.configOptionsInterface,
+        "DEFAULT_CONFIG_OPTIONS",
+        JExpr._new(this.configOptionsImplementation)
+    );
 
     this.configMethod = this.configClass.method(
         JMod.PUBLIC | JMod.STATIC,
@@ -184,12 +199,12 @@ public class ConfigClassGenerator {
         this.configOptionsInterface,
         "options"
     );
-    this.configMethod.javadoc().add("Method is used to define a ConfigDef of this configurationA.");
+    this.configMethod.javadoc().add("Method is used to define a ConfigDef of this Configuration.");
     this.configMethod.javadoc()
         .addParam(this.configMethodOptionsVar)
         .add("Options interface used to configure Recommenders and Validators for each of the " +
-            "configurationA options.");
-    this.configMethod.javadoc().addReturn().add("Returns a ConfigDef for the current configurationA");
+            "configuration options.");
+    this.configMethod.javadoc().addReturn().add("Returns a ConfigDef for the current configuration");
 
 
     if (null == this.baseConfigClass) {
@@ -208,6 +223,14 @@ public class ConfigClassGenerator {
             .arg(originalsVar)
             .arg(false)
     );
+    JMethod constructorDefault = this.configClass.constructor(JMod.PUBLIC);
+    originalsVar = constructorDefault.param(wildcardMapClass, "originals");
+    constructorDefault.body().add(
+        JExpr.invoke("this")
+            .arg(this.configClass.staticInvoke("config").arg(defaultConfigOptionsField))
+            .arg(originalsVar)
+            .arg(false)
+    );
 
     this.constructorWithLog = this.configClass.constructor(JMod.PUBLIC);
     definition = constructorWithLog.param(configDefClass, "definition");
@@ -223,8 +246,8 @@ public class ConfigClassGenerator {
     Map<String, String> parameterJavaDocs = ImmutableMap.of(
         "configOptions", "",
         "definition", "ConfigDef to initialize the AbstractConfig with.",
-        "originals", "Original configurationA values as they were passed from the client.",
-        "dolog", "Flag to determine if the configurationA variables should be logged."
+        "originals", "Original Configuration values as they were passed from the client.",
+        "dolog", "Flag to determine if the Configuration variables should be logged."
     );
 
     this.configClass.constructors().forEachRemaining(jMethod -> {
@@ -309,7 +332,7 @@ public class ConfigClassGenerator {
 
         result.javadoc().add("Method is used to define the Validator that will be " +
             "used for the '" + fullyQualifiedConfigItem + "' parameter.");
-        result.javadoc().addReturn().add("Validator for the configurationA item. " +
+        result.javadoc().addReturn().add("Validator for the Configuration item. " +
             "null if no validator is desired.");
       }
     }
@@ -344,7 +367,7 @@ public class ConfigClassGenerator {
 
         result.javadoc().add("Method is used to define the Recommender that will be " +
             "used for the '" + fullyQualifiedConfigItem + "' parameter.");
-        result.javadoc().addReturn().add("Recommender for the configurationA item. " +
+        result.javadoc().addReturn().add("Recommender for the Configuration item. " +
             "null if no recommender is desired.");
       }
     }
@@ -352,9 +375,9 @@ public class ConfigClassGenerator {
 
   private ConfigurationState setupConfigState() throws JClassAlreadyExistsException {
     ImmutableConfigurationState.Builder stateBuilder = ImmutableConfigurationState.builder()
-        .configuration(this.configurationA);
+        .configuration(this.configuration);
 
-    for (Configuration.Group group : this.configurationA.groups()) {
+    for (Configuration.Group group : this.configuration.groups()) {
       ImmutableGroupState.Builder groupStateBuilder = ImmutableGroupState.builder()
           .groupConstant(addGroupConstant(group))
           .group(group);
@@ -364,7 +387,7 @@ public class ConfigClassGenerator {
         ImmutableConfigItemState.Builder itemStateBuilder = ImmutableConfigItemState.builder()
             .configItem(item)
             .type(type)
-            .confConstant(addConfConstant(this.configurationA, group, item))
+            .confConstant(addConfConstant(this.configuration, group, item))
             .defaultConstant(addDefaultConstant(group, item))
             .defaultPortConstant(addDefaultPortConstant(group, item))
             .displayNameConstant(addDisplayNameConstant(group, item))
@@ -601,7 +624,7 @@ public class ConfigClassGenerator {
     result.body()._return(JExpr._null());
     result.javadoc().add("Method is used to define the Validator that will be " +
         "used for the '" + fullyQualifiedConfigItem + "' parameter.");
-    result.javadoc().addReturn().add("Validator for the configurationA item. " +
+    result.javadoc().addReturn().add("Validator for the Configuration item. " +
         "null if no validator is desired.");
     return result;
   }
@@ -629,7 +652,7 @@ public class ConfigClassGenerator {
 
     result.javadoc().add("Method is used to define the Recommender that will be " +
         "used for the '" + fullyQualifiedConfigItem + "' parameter.");
-    result.javadoc().addReturn().add("Recommender for the configurationA item. " +
+    result.javadoc().addReturn().add("Recommender for the Configuration item. " +
         "null if no recommender is desired.");
 
     return result;
